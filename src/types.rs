@@ -74,14 +74,14 @@ pub struct RegionSummaryRow {
     pub region: String,
     #[tabled(rename = "MainIsland")]
     pub main_island: String,
-    #[tabled(rename = "TotalApprovedBudget")]
-    pub total_approved_budget: String,
-    #[tabled(rename = "MedianCostSavings")]
-    pub median_cost_savings: String,
-    #[tabled(rename = "AvgCompletionDelayDays")]
-    pub avg_completion_delay_days: String,
-    #[tabled(rename = "DelayOver30Percent")]
-    pub delay_over_30_percent: String,
+    #[tabled(rename = "TotalBudget")]
+    pub total_budget: String,
+    #[tabled(rename = "MedianSavings")]
+    pub median_savings: String,
+    #[tabled(rename = "AvgDelay")]
+    pub avg_delay: String,
+    #[tabled(rename = "HighDelayPct")]
+    pub high_delay_pct: String,
     #[tabled(rename = "EfficiencyScore")]
     pub efficiency_score: String,
 }
@@ -114,12 +114,12 @@ pub struct TypeTrendRow {
     pub type_of_work: String,
     #[tabled(rename = "TotalProjects")]
     pub total_projects: usize,
-    #[tabled(rename = "AvgCostSavings")]
-    pub avg_cost_savings: String,
+    #[tabled(rename = "AvgSavings")]
+    pub avg_savings: String,
     #[tabled(rename = "OverrunRate")]
     pub overrun_rate: String,
-    #[tabled(rename = "YoYChangePercent")]
-    pub yoy_change_percent: String,
+    #[tabled(rename = "YoYChange")]
+    pub yoy_change: String,
 }
 
 #[derive(Debug, Serialize)]

@@ -15,12 +15,14 @@ struct AppState {
     data: Option<Vec<CleanRecord>>,
 }
 
-fn prompt(line: &str) -> String {
-    print!("{}", line);
+fn read_choice() -> String {
+    print!("Enter choice: ");
     let _ = io::stdout().flush();
     let mut buf = String::new();
     io::stdin().read_line(&mut buf).ok();
-    buf.trim().to_string()
+    let choice = buf.trim().to_string();
+    print!("\rEnter choice: {}\n", choice); // replace the same line
+    choice
 }
 
 fn handle_load() {
@@ -28,20 +30,14 @@ fn handle_load() {
     match loader::load_and_clean(path) {
         Ok((data, load_report)) => {
             println!(
-                "Processing dataset... ({} rows loaded, {} filtered for 2021-2023)",
+                "Processing dataset... ({} rows loaded, {} filtered for 2021–2023)\n",
                 load_report.total_rows, load_report.filtered_rows
             );
-            if load_report.parse_errors > 0 {
-                println!("Note: {} rows skipped due to parse/validation errors.", load_report.parse_errors);
-            }
-            if load_report.imputed_coords > 0 {
-                println!("Info: Imputed coordinates for {} rows.", load_report.imputed_coords);
-            }
             let mut state = APP_STATE.lock().unwrap();
             state.data = Some(data);
         }
         Err(e) => {
-            eprintln!("Failed to load file: {}", e);
+            eprintln!("Failed to load file: {}\n", e);
         }
     }
 }
@@ -57,73 +53,47 @@ fn handle_generate_reports() {
     };
 
     println!("Generating reports...");
+    println!("Outputs saved to individual files...\n");
 
     let r1 = reports::generate_report1(&data);
     let file1 = "report1_regional_summary.csv";
     if let Err(e) = output::write_csv(file1, &r1) { eprintln!("Write error: {}", e); }
-    output::preview_table(
-        1,
-        "Regional Flood Mitigation Efficiency Summary",
-        Some("Filtered: Projects from 2021–2023 only"),
-        &r1,
-        3,
-    );
-    println!("(Full table exported to {})", file1);
+    println!("Report 1: Regional Flood Mitigation Efficiency Summary\n");
+    println!("Regional Flood Mitigation Efficiency Summary");
+    println!("(Filtered: 2021–2023 Projects)\n");
+    output::preview_table_rows(&r1, 2);
+    println!("(Full table exported to {})\n", file1);
 
     let r2 = reports::generate_report2(&data);
     let file2 = "report2_contractor_ranking.csv";
     if let Err(e) = output::write_csv(file2, &r2) { eprintln!("Write error: {}", e); }
-    output::preview_table(
-        2,
-        "Top Contractors Performance Ranking",
-        Some("Top 15 by TotalCost, >= 5 Projects"),
-        &r2,
-        3,
-    );
-    println!("(Full table exported to {})", file2);
+    println!("Report 2: Top Contractors Performance Ranking\n");
+    println!("Top Contractors Performance Ranking");
+    println!("(Top 15 by TotalCost, >=5 Projects)\n");
+    output::preview_table_rows(&r2, 2);
+    println!("(Full table exported to {})\n", file2);
 
     let r3 = reports::generate_report3(&data);
-    let file3 = "report3_cost_trends.csv";
+    let file3 = "report3_annual_trends.csv";
     if let Err(e) = output::write_csv(file3, &r3) { eprintln!("Write error: {}", e); }
-    output::preview_table(
-        3,
-        "Annual Project Type Cost Overrun Trends",
-        Some("Grouped by FundingYear & TypeOfWork"),
-        &r3,
-        4,
-    );
-    println!("(Full table exported to {})", file3);
+    println!("Report 3: Annual Project Type Cost Overrun Trends");
+    println!("Annual Project Type Cost Overrun Trends");
+    println!("(Grouped by FundingYear and TypeOfWork)\n");
+    output::preview_table_rows(&r3, 3);
+    println!("(Full table exported to {})\n", file3);
 
     let summary = reports::generate_summary(&data, &r2);
     if let Err(e) = output::write_json("summary.json", &summary) { eprintln!("Write error: {}", e); }
-    println!("Summary Stats (summary.json)");
-    println!(
-        "\nSummary Preview:\n{{\"global_avg_delay\": {}, \"total_savings\": {}}}",
-        util::format_number(summary.avg_global_delay, 2),
-        util::format_number(summary.total_savings, 2)
-    );
+    println!("Summary Stats (summary.json):");
+    println!("{{\"global_avg_delay\": {}, \"total_savings\": {}}}\n", util::format_number(summary.avg_global_delay, 2), util::format_number(summary.total_savings, 2));
 }
 
 fn main() {
-    loop {
-        println!("Select Language Implementation:");
-        println!("1. Load the File");
-        println!("2. Generate Reports");
-        let choice = prompt("\nEnter choice: ");
-        match choice.parse::<u32>() {
-            Ok(1) => handle_load(),
-            Ok(2) => {
-                handle_generate_reports();
-                let back = prompt("\nBack to Report Selection (Y/N): ");
-                match back.to_uppercase().as_str() {
-                    "Y" => continue,
-                    "N" => break,
-                    _ => continue,
-                }
-            }
-            _ => {
-                println!("Please enter 1 or 2.\n");
-            }
-        }
-    }
+    println!("Select Language Implementation:");
+    println!("[1] Load the file");
+    println!("[2] Generate Reports\n");
+    let first = read_choice();
+    if first.trim() == "1" { handle_load(); }
+    let second = read_choice();
+    if second.trim() == "2" { println!(""); handle_generate_reports(); }
 }

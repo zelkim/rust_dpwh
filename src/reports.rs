@@ -23,10 +23,10 @@ pub fn generate_report1(data: &[CleanRecord]) -> Vec<RegionSummaryRow> {
         let row = RegionSummaryRow {
             region: acc.region,
             main_island: acc.island,
-            total_approved_budget: format_number(total_budget, 2),
-            median_cost_savings: format_number(med_savings, 2),
-            avg_completion_delay_days: format_number(avg_delay, 2),
-            delay_over_30_percent: format_number(delay_over_30, 2),
+            total_budget: format_number(total_budget, 2),
+            median_savings: format_number(med_savings, 2),
+            avg_delay: format_number(avg_delay, 2),
+            high_delay_pct: format_number(delay_over_30, 2),
             efficiency_score: format_number(eff, 2),
         };
         (eff, row)
@@ -52,7 +52,7 @@ pub fn generate_report2(data: &[CleanRecord]) -> Vec<ContractorRankingRow> {
             let avg_delay = average(&v.delays);
             let mut reliability = (1.0 - (avg_delay / 90.0)) * (v.total_savings / v.total_cost) * 100.0;
             if !reliability.is_finite() { reliability = 0.0; }
-            reliability = clamp_0_100(reliability);
+            if reliability > 100.0 { reliability = 100.0; } // only cap upper bound
             (v.total_cost, k, v.projects, avg_delay, v.total_savings, reliability)
         })
         .collect();
@@ -67,7 +67,7 @@ pub fn generate_report2(data: &[CleanRecord]) -> Vec<ContractorRankingRow> {
             avg_delay: format_number(avg_delay, 2),
             total_savings: format_number(total_savings, 2),
             reliability_index: format_number(reliability, 2),
-            risk_flag: if reliability < 50.0 { "High Risk".to_string() } else { "OK".to_string() },
+            risk_flag: if reliability < 50.0 { "High Risk".to_string() } else { "Low Risk".to_string() },
         });
     }
     rows
@@ -93,9 +93,9 @@ pub fn generate_report3(data: &[CleanRecord]) -> Vec<TypeTrendRow> {
             funding_year: acc.year,
             type_of_work: acc.tow,
             total_projects: acc.savings.len(),
-            avg_cost_savings: format_number(avg, 2),
+            avg_savings: format_number(avg, 2),
             overrun_rate: format_number(overrun_rate, 2),
-            yoy_change_percent: String::new(), // fill later
+            yoy_change: String::new(), // fill later
         };
         rows_num.push((row.funding_year, avg, row));
     }
@@ -104,11 +104,11 @@ pub fn generate_report3(data: &[CleanRecord]) -> Vec<TypeTrendRow> {
     let mut rows: Vec<TypeTrendRow> = rows_num.into_iter().map(|(year, _avg, mut row)| {
         let year_avg = average(avg_by_year.get(&year).map(|v| v.as_slice()).unwrap_or(&[0.0]));
         let change = if baseline.abs() < 1e-9 || year == 2021 { 0.0 } else { ((year_avg - baseline) / baseline.abs()) * 100.0 };
-        row.yoy_change_percent = format!("{:.2}", change);
+        row.yoy_change = format!("{:.2}", change);
         row
     }).collect();
 
-    rows.sort_by(|a, b| a.funding_year.cmp(&b.funding_year).then_with(|| b.avg_cost_savings.cmp(&a.avg_cost_savings)));
+    rows.sort_by(|a, b| a.funding_year.cmp(&b.funding_year).then_with(|| b.avg_savings.cmp(&a.avg_savings)));
     rows
 }
 

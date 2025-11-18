@@ -33,3 +33,16 @@ where
     let table_str = Table::new(slice).with(Style::markdown()).to_string();
     println!("{}\n", table_str);
 }
+
+pub fn preview_table_rows<T>(rows: &[T], max_rows: usize)
+where
+    T: Tabled + Clone,
+{
+    let slice: Vec<T> = rows.iter().cloned().take(max_rows).collect();
+    if slice.is_empty() {
+        println!("(no rows)\n");
+        return;
+    }
+    let table_str = Table::new(slice).with(Style::markdown()).to_string();
+    println!("{}\n", table_str);
+}
