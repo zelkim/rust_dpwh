@@ -1,4 +1,8 @@
-
+// ********************
+// Last names: Robenta, De Leon, Lee, Ortega
+// Language: Rust
+// Paradigm(s): Procedural, Functional
+// ********************
 
 // - Option [1] loads and cleans the CSV, printing diagnostics.
 // - Option [2] generates three reports and a JSON summary.
