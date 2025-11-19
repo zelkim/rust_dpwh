@@ -25,7 +25,6 @@ use std::collections::{HashMap, HashSet};
 ///   * Raw efficiency = MedianSavings / AvgDelay (guarding against /0).
 /// - After computing raw efficiency for all regions, perform a min-max
 ///   normalization so that EfficiencyScore lies in [0, 100] and preserves
-///   orderings, matching the behavior of the reference JavaScript code.
 pub fn generate_report1(data: &[CleanRecord]) -> Vec<RegionSummaryRow> {
     // Accumulator for each (Region, MainIsland) group.
     #[derive(Default)]
@@ -91,10 +90,10 @@ pub fn generate_report1(data: &[CleanRecord]) -> Vec<RegionSummaryRow> {
             RowPrep {
                 region: acc.region,
                 main_island: acc.island,
-                total_budget: format_number(total_budget, 2),
-                median_savings: format_number(med_savings, 2),
-                avg_delay: format_number(avg_delay, 2),
-                high_delay_pct: format_number(delay_over_30, 2),
+                total_budget: format!("{:.2}", total_budget),
+                median_savings: format!("{:.2}", med_savings),
+                avg_delay: format!("{:.2}", avg_delay),
+                high_delay_pct: format!("{:.2}", delay_over_30),
                 raw_efficiency: eff,
             }
         })
@@ -138,7 +137,9 @@ pub fn generate_report1(data: &[CleanRecord]) -> Vec<RegionSummaryRow> {
                 median_savings: row.median_savings,
                 avg_delay: row.avg_delay,
                 high_delay_pct: row.high_delay_pct,
-                efficiency_score: format_number(scaled, 2),
+                // CSV cells should be "100.00" style, without
+                // thousands separators.
+                efficiency_score: format!("{:.2}", scaled),
             };
             (scaled, rendered)
         })
@@ -213,11 +214,11 @@ pub fn generate_report2(data: &[CleanRecord]) -> Vec<ContractorRankingRow> {
         rows.push(ContractorRankingRow {
             rank: idx + 1,
             contractor,
-            total_cost: format_number(total_cost, 2),
+            total_cost: format!("{:.2}", total_cost),
             num_projects: projects,
-            avg_delay: format_number(avg_delay, 2),
-            total_savings: format_number(total_savings, 2),
-            reliability_index: format_number(reliability, 2),
+            avg_delay: format!("{:.2}", avg_delay),
+            total_savings: format!("{:.2}", total_savings),
+            reliability_index: format!("{:.2}", reliability),
             risk_flag: if reliability < 50.0 {
                 "High Risk".to_string()
             } else {
@@ -280,8 +281,8 @@ pub fn generate_report3(data: &[CleanRecord]) -> Vec<TypeTrendRow> {
             funding_year: acc.year,
             type_of_work: acc.tow,
             total_projects,
-            avg_savings: format_number(avg, 2),
-            overrun_rate: format_number(overrun_rate, 2),
+            avg_savings: format!("{:.2}", avg),
+            overrun_rate: format!("{:.2}", overrun_rate),
             yoy_change: String::new(), // fill later
         };
         rows_num.push((row.funding_year, avg, row));
@@ -359,6 +360,6 @@ pub fn generate_summary(
         total_contractors,
         total_provinces: provinces.len(),
         avg_global_delay,
-        total_savings,
+        total_savings: format_number(total_savings, 2),
     }
 }

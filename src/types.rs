@@ -95,6 +95,26 @@ pub struct RegionSummaryRow {
     pub efficiency_score: String,
 }
 
+/// Preview-only variant of `RegionSummaryRow` with prettier number formatting
+/// (commas + two decimal places) for console tables.
+#[derive(Debug, Tabled, Clone)]
+pub struct RegionSummaryRowPreview {
+    #[tabled(rename = "Region")]
+    pub region: String,
+    #[tabled(rename = "MainIsland")]
+    pub main_island: String,
+    #[tabled(rename = "TotalBudget")]
+    pub total_budget: String,
+    #[tabled(rename = "MedianSavings")]
+    pub median_savings: String,
+    #[tabled(rename = "AvgDelay")]
+    pub avg_delay: String,
+    #[tabled(rename = "HighDelayPct")]
+    pub high_delay_pct: String,
+    #[tabled(rename = "EfficiencyScore")]
+    pub efficiency_score: String,
+}
+
 /// Row for Report 2: Top Contractors Performance Ranking.
 ///
 /// The `serde` and `tabled` renames ensure that both the CSV files and the
@@ -127,6 +147,28 @@ pub struct ContractorRankingRow {
     pub risk_flag: String,
 }
 
+/// Preview-only variant of `ContractorRankingRow` with comma formatting for
+/// numeric columns in console tables.
+#[derive(Debug, Tabled, Clone)]
+pub struct ContractorRankingRowPreview {
+    #[tabled(rename = "Rank")]
+    pub rank: usize,
+    #[tabled(rename = "Contractor")]
+    pub contractor: String,
+    #[tabled(rename = "TotalCost")]
+    pub total_cost: String,
+    #[tabled(rename = "NumProjects")]
+    pub num_projects: usize,
+    #[tabled(rename = "AvgDelay")]
+    pub avg_delay: String,
+    #[tabled(rename = "TotalSavings")]
+    pub total_savings: String,
+    #[tabled(rename = "ReliabilityIndex")]
+    pub reliability_index: String,
+    #[tabled(rename = "RiskFlag")]
+    pub risk_flag: String,
+}
+
 /// Row for Report 3: Annual Project Type Cost Overrun Trends.
 ///
 /// Each row represents a (FundingYear, TypeOfWork) pair together with
@@ -153,6 +195,24 @@ pub struct TypeTrendRow {
     pub yoy_change: String,
 }
 
+/// Preview-only variant of `TypeTrendRow` where all numeric columns except
+/// `TotalProjects` are rendered with commas and two decimals.
+#[derive(Debug, Tabled, Clone)]
+pub struct TypeTrendRowPreview {
+    #[tabled(rename = "FundingYear")]
+    pub funding_year: i32,
+    #[tabled(rename = "TypeOfWork")]
+    pub type_of_work: String,
+    #[tabled(rename = "TotalProjects")]
+    pub total_projects: usize,
+    #[tabled(rename = "AvgSavings")]
+    pub avg_savings: String,
+    #[tabled(rename = "OverrunRate")]
+    pub overrun_rate: String,
+    #[tabled(rename = "YoYChange")]
+    pub yoy_change: String,
+}
+
 /// High-level summary statistics exported as `summary.json`.
 #[derive(Debug, Serialize)]
 pub struct SummaryStats {
@@ -160,5 +220,5 @@ pub struct SummaryStats {
     pub total_contractors: usize,
     pub total_provinces: usize,
     pub avg_global_delay: f64,
-    pub total_savings: f64,
+    pub total_savings: String,
 }
