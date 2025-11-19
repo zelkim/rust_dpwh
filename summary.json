@@ -2,6 +2,9 @@
   "total_projects": 7275,
   "total_contractors": 15,
   "total_provinces": 84,
-  "avg_global_delay": 261.25773195876286,
-  "total_savings": "7,383,652,775.99"
+  "global_avg_delay_days": "261.26",
+  "total_savings": "7,383,652,775.99",
+  "report1_regions": 16,
+  "report2_contractors": 15,
+  "report3_entries": 40
 }

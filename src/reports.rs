@@ -346,7 +346,10 @@ pub fn generate_summary(
         total_projects,
         total_contractors,
         total_provinces: provinces.len(),
-        avg_global_delay,
+        global_avg_delay_days: format_number(avg_global_delay, 2),
         total_savings: format_number(total_savings, 2),
+        report1_regions: 0,      // filled by caller if needed
+        report2_contractors: 0,  // filled by caller if needed
+        report3_entries: 0,      // filled by caller if needed
     }
 }

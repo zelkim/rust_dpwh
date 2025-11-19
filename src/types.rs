@@ -219,6 +219,10 @@ pub struct SummaryStats {
     pub total_projects: usize,
     pub total_contractors: usize,
     pub total_provinces: usize,
-    pub avg_global_delay: f64,
+    #[serde(rename = "global_avg_delay_days")]
+    pub global_avg_delay_days: String,
     pub total_savings: String,
+    pub report1_regions: usize,
+    pub report2_contractors: usize,
+    pub report3_entries: usize,
 }

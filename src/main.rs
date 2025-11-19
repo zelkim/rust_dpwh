@@ -181,15 +181,19 @@ fn handle_generate_reports() {
     output::preview_table_rows(&r3_preview, 3);
     println!("(Full table exported to {})\n", file3);
 
-    let summary = reports::generate_summary(&data, &r2);
+    let mut summary = reports::generate_summary(&data, &r2);
+    // Fill in report-level counts to match the JS summary.json shape.
+    summary.report1_regions = r1.len();
+    summary.report2_contractors = r2.len();
+    summary.report3_entries = r3.len();
     if let Err(e) = output::write_json("summary.json", &summary) {
         eprintln!("Write error: {}", e);
     }
     println!("Summary Stats (summary.json):");
     println!(
-        "{{\"global_avg_delay\": {}, \"total_savings\": {}}}\n",
-        util::format_number(summary.avg_global_delay, 2),
-        summary.total_savings
+        "{{\"global_avg_delay_days\": \"{}\", \"total_savings\": \"{}\"}}\n",
+        summary.global_avg_delay_days,
+        summary.total_savings,
     );
 }
 
