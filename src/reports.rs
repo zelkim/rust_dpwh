@@ -330,11 +330,14 @@ pub fn generate_report3(data: &[CleanRecord]) -> Vec<TypeTrendRow> {
         })
         .collect();
 
-    // Sort by FundingYear ascending, then by AvgSavings descending
-    // (stored in the second tuple slot).
+    // Sort by FundingYear ascending, then by AvgSavings (numeric) descending.
+    // a.0 and b.0 are the funding years; a.1 and b.1 are the numeric
+    // average savings used purely for sorting (the formatted string lives
+    // inside the `TypeTrendRow`).
     rows_with_avg.sort_by(|a, b| {
-        a.0.cmp(&b.0)
-            .then_with(|| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal))
+        a.0.cmp(&b.0).then_with(|| {
+            b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal)
+        })
     });
 
     rows_with_avg.into_iter().map(|(_, _, row)| row).collect()
