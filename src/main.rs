@@ -1,8 +1,8 @@
+mod loader;
+mod output;
+mod reports;
 mod types;
 mod util;
-mod loader;
-mod reports;
-mod output;
 
 use once_cell::sync::Lazy;
 use std::io::{self, Write};
@@ -20,9 +20,7 @@ fn read_choice() -> String {
     let _ = io::stdout().flush();
     let mut buf = String::new();
     io::stdin().read_line(&mut buf).ok();
-    let choice = buf.trim().to_string();
-    print!("\rEnter choice: {}\n", choice); // replace the same line
-    choice
+    buf.trim().to_string()
 }
 
 fn handle_load() {
@@ -30,9 +28,21 @@ fn handle_load() {
     match loader::load_and_clean(path) {
         Ok((data, load_report)) => {
             println!(
-                "Processing dataset... ({} rows loaded, {} filtered for 2021–2023)\n",
-                load_report.total_rows, load_report.filtered_rows
+                "Processing dataset... ({} rows loaded, {} filtered for 2021–2023)",
+                util::format_int(load_report.total_rows as i64),
+                util::format_int(load_report.filtered_rows as i64)
             );
+            println!(
+                "Note: {} rows skipped due to parse/validation errors.",
+                util::format_int(load_report.parse_errors as i64)
+            );
+            if load_report.imputed_coords > 0 {
+                println!(
+                    "Info: Imputed coordinates for {} rows.",
+                    util::format_int(load_report.imputed_coords as i64)
+                );
+            }
+            println!("");
             let mut state = APP_STATE.lock().unwrap();
             state.data = Some(data);
         }
@@ -57,7 +67,9 @@ fn handle_generate_reports() {
 
     let r1 = reports::generate_report1(&data);
     let file1 = "report1_regional_summary.csv";
-    if let Err(e) = output::write_csv(file1, &r1) { eprintln!("Write error: {}", e); }
+    if let Err(e) = output::write_csv(file1, &r1) {
+        eprintln!("Write error: {}", e);
+    }
     println!("Report 1: Regional Flood Mitigation Efficiency Summary\n");
     println!("Regional Flood Mitigation Efficiency Summary");
     println!("(Filtered: 2021–2023 Projects)\n");
@@ -66,7 +78,9 @@ fn handle_generate_reports() {
 
     let r2 = reports::generate_report2(&data);
     let file2 = "report2_contractor_ranking.csv";
-    if let Err(e) = output::write_csv(file2, &r2) { eprintln!("Write error: {}", e); }
+    if let Err(e) = output::write_csv(file2, &r2) {
+        eprintln!("Write error: {}", e);
+    }
     println!("Report 2: Top Contractors Performance Ranking\n");
     println!("Top Contractors Performance Ranking");
     println!("(Top 15 by TotalCost, >=5 Projects)\n");
@@ -75,7 +89,9 @@ fn handle_generate_reports() {
 
     let r3 = reports::generate_report3(&data);
     let file3 = "report3_annual_trends.csv";
-    if let Err(e) = output::write_csv(file3, &r3) { eprintln!("Write error: {}", e); }
+    if let Err(e) = output::write_csv(file3, &r3) {
+        eprintln!("Write error: {}", e);
+    }
     println!("Report 3: Annual Project Type Cost Overrun Trends");
     println!("Annual Project Type Cost Overrun Trends");
     println!("(Grouped by FundingYear and TypeOfWork)\n");
@@ -83,9 +99,15 @@ fn handle_generate_reports() {
     println!("(Full table exported to {})\n", file3);
 
     let summary = reports::generate_summary(&data, &r2);
-    if let Err(e) = output::write_json("summary.json", &summary) { eprintln!("Write error: {}", e); }
+    if let Err(e) = output::write_json("summary.json", &summary) {
+        eprintln!("Write error: {}", e);
+    }
     println!("Summary Stats (summary.json):");
-    println!("{{\"global_avg_delay\": {}, \"total_savings\": {}}}\n", util::format_number(summary.avg_global_delay, 2), util::format_number(summary.total_savings, 2));
+    println!(
+        "{{\"global_avg_delay\": {}, \"total_savings\": {}}}\n",
+        util::format_number(summary.avg_global_delay, 2),
+        util::format_number(summary.total_savings, 2)
+    );
 }
 
 fn main() {
@@ -93,7 +115,12 @@ fn main() {
     println!("[1] Load the file");
     println!("[2] Generate Reports\n");
     let first = read_choice();
-    if first.trim() == "1" { handle_load(); }
+    if first.trim() == "1" {
+        handle_load();
+    }
     let second = read_choice();
-    if second.trim() == "2" { println!(""); handle_generate_reports(); }
+    if second.trim() == "2" {
+        println!("");
+        handle_generate_reports();
+    }
 }
