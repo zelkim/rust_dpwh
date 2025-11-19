@@ -191,9 +191,15 @@ fn handle_generate_reports() {
     }
     println!("Summary Stats (summary.json):");
     println!(
-        "{{\"global_avg_delay_days\": \"{}\", \"total_savings\": \"{}\"}}\n",
+        "{{\"global_avg_delay_days\": \"{}\", \"total_savings\": {}}}\n",
         summary.global_avg_delay_days,
-        summary.total_savings,
+        format_number(summary
+            .total_savings
+            .replace(",", "")
+            .parse::<f64>()
+            .unwrap_or(0.0),
+            2
+        )
     );
 }
 
