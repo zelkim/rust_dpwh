@@ -1,3 +1,11 @@
+// Report-generation functions.
+//
+// These functions take in cleaned project records and aggregate them into
+// higher-level summaries for:
+// 1. Regions (Report 1)
+// 2. Contractors (Report 2)
+// 3. Funding year + type of work trends (Report 3)
+// 4. Overall summary statistics
 use crate::types::{
     CleanRecord, ContractorRankingRow, RegionSummaryRow, SummaryStats, TypeTrendRow,
 };
@@ -5,7 +13,21 @@ use crate::util::{average, format_number, median};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
+/// Generate Report 1: Regional Flood Mitigation Efficiency Summary.
+///
+/// Algorithm (per (Region, MainIsland) group):
+/// - Aggregate budgets, cost savings, and completion delays.
+/// - Compute:
+///   * TotalBudget (sum of budgets)
+///   * MedianSavings (median of savings)
+///   * AvgDelay (mean of delays)
+///   * HighDelayPct (% of projects with delay > 30 days)
+///   * Raw efficiency = MedianSavings / AvgDelay (guarding against /0).
+/// - After computing raw efficiency for all regions, perform a min-max
+///   normalization so that EfficiencyScore lies in [0, 100] and preserves
+///   orderings, matching the behavior of the reference JavaScript code.
 pub fn generate_report1(data: &[CleanRecord]) -> Vec<RegionSummaryRow> {
+    // Accumulator for each (Region, MainIsland) group.
     #[derive(Default)]
     struct Acc {
         budgets: Vec<f64>,
@@ -14,6 +36,8 @@ pub fn generate_report1(data: &[CleanRecord]) -> Vec<RegionSummaryRow> {
         region: String,
         island: String,
     }
+    // Prepared row that holds both formatted strings and the raw
+    // efficiency score (used for min-max normalization later).
     #[derive(Clone)]
     struct RowPrep {
         region: String,
@@ -25,6 +49,7 @@ pub fn generate_report1(data: &[CleanRecord]) -> Vec<RegionSummaryRow> {
         raw_efficiency: f64,
     }
 
+    // First pass: group all rows by (Region, MainIsland).
     let mut map: HashMap<(String, String), Acc> = HashMap::new();
     for r in data {
         let key = (r.region.clone(), r.main_island.clone());
@@ -39,6 +64,7 @@ pub fn generate_report1(data: &[CleanRecord]) -> Vec<RegionSummaryRow> {
         e.savings.push(r.cost_savings);
         e.delays.push(r.completion_delay_days);
     }
+    // Second pass: compute group-level aggregates and raw efficiency.
     let prepared: Vec<RowPrep> = map
         .into_values()
         .map(|acc| {
@@ -50,6 +76,9 @@ pub fn generate_report1(data: &[CleanRecord]) -> Vec<RegionSummaryRow> {
                     * 100.0
             };
             let med_savings = median(acc.savings.clone());
+            // Raw efficiency is defined as `median_savings / avg_delay`.
+            // Values are clamped to non-negative and non-NaN here; the
+            // normalization to [0,100] happens in a separate pass below.
             let mut eff = if avg_delay <= 0.0 {
                 0.0
             } else {
@@ -74,6 +103,7 @@ pub fn generate_report1(data: &[CleanRecord]) -> Vec<RegionSummaryRow> {
         return Vec::new();
     }
 
+    // Compute the min and max raw efficiency across all regions.
     let (mut min_eff, mut max_eff) = (f64::MAX, f64::MIN);
     for row in &prepared {
         min_eff = min_eff.min(row.raw_efficiency);
@@ -87,6 +117,8 @@ pub fn generate_report1(data: &[CleanRecord]) -> Vec<RegionSummaryRow> {
     }
     let range = max_eff - min_eff;
 
+    // Third pass: transform raw efficiency into a 0–100 score using
+    // min-max scaling, then build final `RegionSummaryRow` values.
     let mut scored: Vec<(f64, RegionSummaryRow)> = prepared
         .into_iter()
         .map(|row| {
@@ -112,10 +144,25 @@ pub fn generate_report1(data: &[CleanRecord]) -> Vec<RegionSummaryRow> {
         })
         .collect();
 
+    // Sort descending by scaled efficiency so the best-performing regions
+    // appear first in both the preview and CSV.
     scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
     scored.into_iter().map(|(_, row)| row).collect()
 }
 
+/// Generate Report 2: Top Contractors Performance Ranking.
+///
+/// Algorithm:
+/// - Group projects by contractor.
+/// - Filter out contractors with fewer than 5 projects.
+/// - For each contractor, compute:
+///   * TotalCost = sum of contract_cost
+///   * NumProjects = project count
+///   * AvgDelay = mean of completion delays
+///   * TotalSavings = sum of cost_savings
+///   * ReliabilityIndex = (1 - AvgDelay/90) * (TotalSavings/TotalCost) * 100,
+///     clamped only on the upper bound (can be negative).
+/// - Sort contractors by TotalCost descending and take the top 15.
 pub fn generate_report2(data: &[CleanRecord]) -> Vec<ContractorRankingRow> {
     #[derive(Default)]
     struct Acc {
@@ -132,6 +179,8 @@ pub fn generate_report2(data: &[CleanRecord]) -> Vec<ContractorRankingRow> {
         e.total_savings += r.cost_savings;
         e.total_cost += r.contract_cost;
     }
+    // Turn the map into a flat list of tuples so we can sort by
+    // total_cost while keeping all derived metrics together.
     let mut tmp: Vec<(f64, String, usize, f64, f64, f64)> = map
         .into_iter()
         .filter(|(_, v)| v.projects >= 5)
@@ -155,6 +204,7 @@ pub fn generate_report2(data: &[CleanRecord]) -> Vec<ContractorRankingRow> {
             )
         })
         .collect();
+    // Sort descending by total contract cost and keep only the top 15.
     tmp.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
     let mut rows: Vec<ContractorRankingRow> = Vec::new();
     for (idx, (total_cost, contractor, projects, avg_delay, total_savings, reliability)) in
@@ -178,6 +228,19 @@ pub fn generate_report2(data: &[CleanRecord]) -> Vec<ContractorRankingRow> {
     rows
 }
 
+/// Generate Report 3: Annual Project Type Cost Overrun Trends.
+///
+/// Algorithm:
+/// - Group projects by (FundingYear, TypeOfWork).
+/// - For each group, compute:
+///   * TotalProjects
+///   * AvgSavings (average of cost_savings)
+///   * OverrunRate (% of projects with negative savings).
+/// - Separately maintain a per-year weighted average of savings across
+///   all types: (sum of savings) / (total project count).
+/// - Take 2021's weighted average as the baseline and compute a
+///   YoYChange for each year relative to that baseline.
+/// - Sort rows by FundingYear ascending, then AvgSavings descending.
 pub fn generate_report3(data: &[CleanRecord]) -> Vec<TypeTrendRow> {
     #[derive(Default)]
     struct Acc {
@@ -196,6 +259,8 @@ pub fn generate_report3(data: &[CleanRecord]) -> Vec<TypeTrendRow> {
         e.savings.push(r.cost_savings);
     }
 
+    // For YoY calculations we need a weighted average per year, so we
+    // hold (total_savings, total_projects) per funding year.
     let mut yearly_totals: HashMap<i32, (f64, usize)> = HashMap::new();
     let mut rows_num: Vec<(i32, f64, TypeTrendRow)> = Vec::new();
     for acc in map.into_values() {
@@ -222,6 +287,7 @@ pub fn generate_report3(data: &[CleanRecord]) -> Vec<TypeTrendRow> {
         rows_num.push((row.funding_year, avg, row));
     }
 
+    // Compute the 2021 weighted average as the YoY baseline.
     let baseline = yearly_totals
         .get(&2021)
         .map(|(total, count)| {
@@ -232,6 +298,8 @@ pub fn generate_report3(data: &[CleanRecord]) -> Vec<TypeTrendRow> {
             }
         })
         .unwrap_or(0.0);
+    // Protect against divide-by-zero: if the baseline is 0, treat the
+    // denominator as 1 so that YoYChange becomes 0 instead of NaN.
     let denom = if baseline.abs() < f64::EPSILON {
         1.0
     } else {
@@ -261,6 +329,8 @@ pub fn generate_report3(data: &[CleanRecord]) -> Vec<TypeTrendRow> {
         })
         .collect();
 
+    // Sort by FundingYear ascending, then by AvgSavings descending
+    // (stored in the second tuple slot).
     rows_with_avg.sort_by(|a, b| {
         a.0.cmp(&b.0)
             .then_with(|| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal))
@@ -269,6 +339,7 @@ pub fn generate_report3(data: &[CleanRecord]) -> Vec<TypeTrendRow> {
     rows_with_avg.into_iter().map(|(_, _, row)| row).collect()
 }
 
+/// Generate high-level summary statistics over all cleaned records.
 pub fn generate_summary(
     data: &[CleanRecord],
     contractors: &[ContractorRankingRow],

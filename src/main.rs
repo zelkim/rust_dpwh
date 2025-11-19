@@ -1,3 +1,10 @@
+// Entry point and high-level CLI flow.
+//
+// The Rust binary mirrors the behavior of the original JavaScript script:
+// - Option [1] loads and cleans the CSV, printing diagnostics.
+// - Option [2] generates three reports and a JSON summary.
+// - After generating reports, the user can choose to go back to the
+//   selection menu or exit.
 mod loader;
 mod output;
 mod reports;
@@ -9,12 +16,17 @@ use std::io::{self, Write};
 use std::sync::Mutex;
 use types::CleanRecord;
 
+// Simple in-memory app state so we only load/clean the CSV once but can
+// generate reports multiple times in a single run.
 static APP_STATE: Lazy<Mutex<AppState>> = Lazy::new(|| Mutex::new(AppState { data: None }));
 
 struct AppState {
     data: Option<Vec<CleanRecord>>,
 }
 
+/// Read a single line of input after printing the common "Enter choice:" prompt.
+///
+/// The prompt is reused for both the main menu and simple numeric inputs.
 fn read_choice() -> String {
     print!("Enter choice: ");
     let _ = io::stdout().flush();
@@ -23,6 +35,29 @@ fn read_choice() -> String {
     buf.trim().to_string()
 }
 
+/// Ask the user whether to go back to the report selection menu after
+/// generating reports.
+///
+/// Returns `true` if the user chose `Y`, `false` if they chose `N`.
+fn prompt_back_to_menu() -> bool {
+    loop {
+        print!("Back to Report Selection (Y/N): ");
+        let _ = io::stdout().flush();
+        let mut buf = String::new();
+        io::stdin().read_line(&mut buf).ok();
+        let resp = buf.trim().to_uppercase();
+        match resp.as_str() {
+            "Y" => return true,
+            "N" => return false,
+            _ => println!("Invalid choice. Please enter Y or N."),
+        }
+    }
+}
+
+/// Handle option [1]: load and clean the CSV file.
+///
+/// On success, we store the `Vec<ClanRecord>` in `APP_STATE` and print
+/// a short textual summary of what happened.
 fn handle_load() {
     let path = "dpwh_flood_control_projects.csv";
     match loader::load_and_clean(path) {
@@ -52,6 +87,12 @@ fn handle_load() {
     }
 }
 
+/// Handle option [2]: generate all reports and the JSON summary.
+///
+/// This function is intentionally side-effectful:
+/// - writes three CSV files,
+/// - writes a JSOn summary
+/// - and prints Markdown previews of each report to the console.
 fn handle_generate_reports() {
     let data = {
         let state = APP_STATE.lock().unwrap();
@@ -111,16 +152,25 @@ fn handle_generate_reports() {
 }
 
 fn main() {
-    println!("Select Language Implementation:");
-    println!("[1] Load the file");
-    println!("[2] Generate Reports\n");
-    let first = read_choice();
-    if first.trim() == "1" {
-        handle_load();
-    }
-    let second = read_choice();
-    if second.trim() == "2" {
-        println!("");
-        handle_generate_reports();
+    loop {
+        println!("Select Language Implementation:");
+        println!("[1] Load the file");
+        println!("[2] Generate Reports\n");
+        match read_choice().as_str() {
+            "1" => {
+                handle_load();
+            }
+            "2" => {
+                println!("");
+                handle_generate_reports();
+                if !prompt_back_to_menu() {
+                    println!("Exiting the program.");
+                    break;
+                }
+            }
+            _ => {
+                println!("Invalid choice. Please enter 1 or 2.\n");
+            }
+        }
     }
 }

@@ -1,3 +1,10 @@
+// Data loading and cleaning pipeline.
+//
+// This module is responsible for:
+// - reading the raw CSV file using the `csv` crate,
+// - deserializing rows into `RawRow`,
+// - validating and transforming them into `CleanRecord`, and
+// - tracking basic statistics about parsing/imputation.
 use crate::types::{CleanRecord, RawRow};
 use crate::util::{days_diff, parse_date_safe, parse_f64_safe, parse_i32_safe};
 use chrono::NaiveDate;
@@ -5,6 +12,11 @@ use csv::ReaderBuilder;
 use std::collections::HashMap;
 use std::error::Error;
 
+/// Summary of what happened while loading and cleaning the CSV.
+///
+/// This is used to print user-friendly diagnostics after option `[1]`:
+/// how many rows were seen, how many made it through filtering, and how
+/// many required coordinate imputation.
 #[derive(Debug, Clone)]
 pub struct LoadReport {
     pub total_rows: usize,
@@ -13,12 +25,25 @@ pub struct LoadReport {
     pub imputed_coords: usize,
 }
 
+/// Load the CSV at `path`, validate and enrich each row, and return a
+/// vector of `CleanRecord` plus a `LoadReport`.
+///
+/// The high-level algorithm is:
+/// 1. Stream-deserialize `RawRow` values using `csv::Reader`.
+/// 2. For each row, validate funding year, numeric fields, and dates.
+/// 3. Compute derived metrics (cost savings, completion delay).
+/// 4. Attempt to fill missing coordinates, first from project, then from
+///    provincial capital, then later via province-level averages.
+/// 5. Drop rows that fail validation and increment `parse_errors`.
 pub fn load_and_clean(path: &str) -> Result<(Vec<CleanRecord>, LoadReport), Box<dyn Error>> {
+    // `flexible(true)` lets the reader tolerate rows with varying column
+    // counts instead of failing hard on minor format issues.
     let mut rdr = ReaderBuilder::new().flexible(true).from_path(path)?;
     let mut total_rows = 0usize;
     let mut parse_errors = 0usize;
     let mut prelim: Vec<CleanRecord> = Vec::new();
 
+    // Stream over the CSV rows; each `result` is a `Result<RawRow, _>`.
     for result in rdr.deserialize::<RawRow>() {
         total_rows += 1;
         let row = match result {
@@ -49,6 +74,10 @@ pub fn load_and_clean(path: &str) -> Result<(Vec<CleanRecord>, LoadReport), Box<
                 continue;
             }
         };
+        // Both `StartDate` and `ActualCompletionDate` are required to
+        // compute a completion delay. Missing start dates are treated as
+        // fatal parse errors; missing completion dates are imputed from
+        // the start date 
         let start_date: NaiveDate = match parse_date_safe(row.start_date.as_deref()) {
             Some(d) => d,
             None => {
@@ -61,6 +90,9 @@ pub fn load_and_clean(path: &str) -> Result<(Vec<CleanRecord>, LoadReport), Box<
             None => start_date,
         };
 
+        // Derived metrics:
+        // - `completion_delay_days` is the raw day difference.
+        // - `cost_savings` is ApprovedBudget - ContractCost.
         let completion_delay_days = days_diff(start_date, actual_date);
         let cost_savings = approved_budget - contract_cost;
 
@@ -90,6 +122,8 @@ pub fn load_and_clean(path: &str) -> Result<(Vec<CleanRecord>, LoadReport), Box<
             .trim()
             .to_string();
 
+        // Prefer explicit project coordinates, but fall back to the
+        // provincial capital coordinates if needed.
         let mut lat = parse_f64_safe(row.project_latitude.as_deref());
         let mut lon = parse_f64_safe(row.project_longitude.as_deref());
         if lat.is_none() || lon.is_none() {
@@ -119,7 +153,8 @@ pub fn load_and_clean(path: &str) -> Result<(Vec<CleanRecord>, LoadReport), Box<
         });
     }
 
-    // Province averages for imputation if still missing
+    // Province-level averages imputation if coordinates are still
+    // missing: compute (sum_lat, sum_lon, count) per province.
     let mut by_prov: HashMap<String, (f64, f64, usize)> = HashMap::new();
     for r in &prelim {
         if let (Some(lat), Some(lon)) = (r.lat, r.lon) {

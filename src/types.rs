@@ -1,6 +1,18 @@
+// Core data structures used across the pipeline: raw CSV rows, cleaned
+// records, and the various report output shapes.
+//
+// `serde` is used for both CSV deserialization (input) and JSON/CSV
+// serialization (output). `tabled` is used to pretty-print Markdown tables
+// in the terminal previews.
 use serde::{Deserialize, Serialize};
 use tabled::Tabled;
 
+/// Direct mapping of the input CSV schema.
+///
+/// All fields are optional `String` because CSV parsing happens in two
+/// stages:
+/// 1. Deserialize raw strings from disk into this struct.
+/// 2. Apply validation, trimming, and type conversion inside `loader.rs`.
 #[derive(Debug, Deserialize)]
 pub struct RawRow {
     #[serde(rename = "MainIsland")]
@@ -33,6 +45,14 @@ pub struct RawRow {
     pub provincial_capital_longitude: Option<String>,
 }
 
+/// Fully validated and normalized project record.
+///
+/// This is the internal representation used by all reporting code. By the
+/// time we construct `CleanRecord`, we have:
+/// - ensured the funding year is within 2021–2023,
+/// - parsed all numeric/date fields,
+/// - filled in defaults for missing text fields, and
+/// - possibly imputed latitude/longitude values.
 #[derive(Debug, Clone)]
 pub struct CleanRecord {
     pub funding_year: i32,
@@ -49,6 +69,7 @@ pub struct CleanRecord {
     pub lon: Option<f64>,
 }
 
+/// Row for Report 1: Regional Flood Mitigation Efficiency Summary.
 #[derive(Debug, Serialize, Tabled, Clone)]
 pub struct RegionSummaryRow {
     #[serde(rename = "Region")]
@@ -74,6 +95,10 @@ pub struct RegionSummaryRow {
     pub efficiency_score: String,
 }
 
+/// Row for Report 2: Top Contractors Performance Ranking.
+///
+/// The `serde` and `tabled` renames ensure that both the CSV files and the
+/// Markdown previews share the same headers (e.g., `TotalCost`, `AvgDelay`).
 #[derive(Debug, Serialize, Tabled, Clone)]
 pub struct ContractorRankingRow {
     #[serde(rename = "Rank")]
@@ -102,6 +127,10 @@ pub struct ContractorRankingRow {
     pub risk_flag: String,
 }
 
+/// Row for Report 3: Annual Project Type Cost Overrun Trends.
+///
+/// Each row represents a (FundingYear, TypeOfWork) pair together with
+/// summary metrics and year-over-year change.
 #[derive(Debug, Serialize, Tabled, Clone)]
 pub struct TypeTrendRow {
     #[serde(rename = "FundingYear")]
@@ -124,6 +153,7 @@ pub struct TypeTrendRow {
     pub yoy_change: String,
 }
 
+/// High-level summary statistics exported as `summary.json`.
 #[derive(Debug, Serialize)]
 pub struct SummaryStats {
     pub total_projects: usize,

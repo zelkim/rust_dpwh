@@ -1,4 +1,4 @@
-rank,contractor,total_cost,num_projects,avg_delay,total_savings,reliability_index,risk_flag
+Rank,Contractor,TotalCost,NumProjects,AvgDelay,TotalSavings,ReliabilityIndex,RiskFlag
 1,LEGACY CONSTRUCTION CORPORATION (FORMERLY: LEGACY CONSTRUCTION),"7,461,429,841.11",99,293.29,"57,784,287.18",-1.75,High Risk
 2,"SUNWEST, INC. (FORMERLY: SUNWEST CONSTRUCTION & DEVELOPMENT CORPORATION)","5,571,167,253.77",43,344.63,"21,131,666.41",-1.07,High Risk
 3,QM BUILDERS,"5,561,648,399.87",75,233.97,"2,912,517.20",-0.08,High Risk
