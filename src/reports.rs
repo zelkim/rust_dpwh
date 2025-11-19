@@ -260,17 +260,13 @@ pub fn generate_report3(data: &[CleanRecord]) -> Vec<TypeTrendRow> {
         e.savings.push(r.cost_savings);
     }
 
-    // For YoY calculations we need a weighted average per year, so we
-    // hold (total_savings, total_projects) per funding year.
-    let mut yearly_totals: HashMap<i32, (f64, usize)> = HashMap::new();
+    // We track a numeric average per (year, type) plus formatted fields.
+    // The numeric average is stored alongside the row for sorting and
+    // YoY calculations.
     let mut rows_num: Vec<(i32, f64, TypeTrendRow)> = Vec::new();
     for acc in map.into_values() {
         let avg = average(&acc.savings);
         let total_projects = acc.savings.len();
-        let sum_savings: f64 = acc.savings.iter().sum();
-        let entry = yearly_totals.entry(acc.year).or_insert((0.0, 0));
-        entry.0 += sum_savings;
-        entry.1 += total_projects;
         let overrun_rate = if acc.savings.is_empty() {
             0.0
         } else {
@@ -288,42 +284,30 @@ pub fn generate_report3(data: &[CleanRecord]) -> Vec<TypeTrendRow> {
         rows_num.push((row.funding_year, avg, row));
     }
 
-    // Compute the 2021 weighted average as the YoY baseline.
-    let baseline = yearly_totals
-        .get(&2021)
-        .map(|(total, count)| {
-            if *count > 0 {
-                *total / *count as f64
-            } else {
-                0.0
-            }
-        })
-        .unwrap_or(0.0);
-    // Protect against divide-by-zero: if the baseline is 0, treat the
-    // denominator as 1 so that YoYChange becomes 0 instead of NaN.
-    let denom = if baseline.abs() < f64::EPSILON {
-        1.0
-    } else {
-        baseline.abs()
-    };
+    // Build a per-TypeOfWork baseline from 2021 averages, mirroring the
+    // JavaScript implementation's `baselineByType`.
+    let mut baseline_by_type: HashMap<String, f64> = HashMap::new();
+    for (year, avg_val, row) in &rows_num {
+        if *year == 2021 {
+            baseline_by_type
+                .entry(row.type_of_work.clone())
+                .or_insert(*avg_val);
+        }
+    }
 
+    // Compute YoY change per (year, type) using that type's 2021
+    // baseline. If there is no baseline or it is zero, YoYChange is 0.00.
     let mut rows_with_avg: Vec<(i32, f64, TypeTrendRow)> = rows_num
         .into_iter()
         .map(|(year, avg_val, mut row)| {
-            let year_avg = yearly_totals
-                .get(&year)
-                .map(|(total, count)| {
-                    if *count > 0 {
-                        *total / *count as f64
-                    } else {
-                        0.0
-                    }
-                })
+            let baseline = baseline_by_type
+                .get(&row.type_of_work)
+                .copied()
                 .unwrap_or(0.0);
-            let change = if year == 2021 {
+            let change = if year == 2021 || baseline.abs() < f64::EPSILON {
                 0.0
             } else {
-                ((year_avg - baseline) / denom) * 100.0
+                ((avg_val - baseline) / baseline.abs()) * 100.0
             };
             row.yoy_change = format!("{:.2}", change);
             (year, avg_val, row)
